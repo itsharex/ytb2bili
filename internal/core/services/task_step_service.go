@@ -231,13 +231,13 @@ func (s *TaskStepService) GetPendingSteps() ([]*model.TaskStep, error) {
 	var steps []*model.TaskStep
 
 	// 使用 JOIN 查询，只获取未删除视频的待处理步骤
-	result := s.DB.Table("cw_task_steps").
-		Select("cw_task_steps.*").
-		Joins("INNER JOIN cw_saved_videos ON cw_task_steps.video_id = cw_saved_videos.video_id").
-		Where("cw_task_steps.status = ?", model.TaskStepStatusPending).
-		Where("cw_task_steps.deleted_at IS NULL").
-		Where("cw_saved_videos.deleted_at IS NULL").
-		Order("cw_task_steps.created_at ASC").
+	result := s.DB.Table("tb_task_steps").
+		Select("tb_task_steps.*").
+		Joins("INNER JOIN tb_saved_videos ON tb_task_steps.video_id = tb_saved_videos.video_id").
+		Where("tb_task_steps.status = ?", model.TaskStepStatusPending).
+		Where("tb_task_steps.deleted_at IS NULL").
+		Where("tb_saved_videos.deleted_at IS NULL").
+		Order("tb_task_steps.created_at ASC").
 		Find(&steps)
 
 	if result.Error != nil {

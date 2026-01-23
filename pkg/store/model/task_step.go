@@ -21,7 +21,7 @@ type TaskStep struct {
 
 // TableName 指定表名
 func (TaskStep) TableName() string {
-	return "cw_task_steps"
+	return "tb_task_steps"
 }
 
 // TaskStepStatus 任务步骤状态常量

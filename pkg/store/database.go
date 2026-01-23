@@ -18,7 +18,7 @@ func NewDatabase(config *types.AppConfig) (*gorm.DB, error) {
 	// GORM配置
 	gormConfig := &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
-			TablePrefix:   "cw_", // crypto_wallet prefix
+			TablePrefix:   "tb_", // crypto_wallet prefix
 			SingularTable: false,
 		},
 	}

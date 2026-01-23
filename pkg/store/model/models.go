@@ -94,5 +94,5 @@ type SavedVideo struct {
 
 // TableName 指定表名
 func (SavedVideo) TableName() string {
-	return "cw_saved_videos"
+	return "tb_saved_videos"
 }

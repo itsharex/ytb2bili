@@ -93,7 +93,7 @@ func (s *UploadScheduler) uploadNextVideo() error {
 		CreatedAt time.Time
 	}
 
-	err := s.Db.Table("cw_saved_videos").
+	err := s.Db.Table("tb_saved_videos").
 		Select("id, video_id, title, created_at").
 		Where("status = ?", "200").
 		Where("deleted_at IS NULL").
@@ -147,7 +147,7 @@ func (s *UploadScheduler) uploadNextSubtitle() error {
 
 	oneHourAgo := time.Now().Add(-time.Hour)
 
-	err := s.Db.Table("cw_saved_videos").
+	err := s.Db.Table("tb_saved_videos").
 		Select("id, video_id, title, updated_at, created_at").
 		Where("status = ? AND updated_at <= ?", "300", oneHourAgo).
 		Where("deleted_at IS NULL").
