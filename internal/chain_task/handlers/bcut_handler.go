@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/difyz9/ytb2bili/internal/chain_task/base"
-	"github.com/difyz9/ytb2ibili/internal/chain_task/manager"
+	"github.com/difyz9/ytb2bili/internal/chain_task/manager"
 	"github.com/difyz9/ytb2bili/internal/core"
 	"github.com/difyz9/ytb2bili/pkg/cos"
 	"gorm.io/gorm"
@@ -67,8 +67,8 @@ func (h *BcutHandler) Execute(context map[string]interface{}) bool {
 	// 检查音频文件是否存在
 	audioPath := h.StateManager.OriginalWAV
 	if audioPath == "" {
-		// 如果没有WAV文件，尝试使用其他音频格式
-		audioPath = h.StateManager.AudioFilePath
+		// 如果没有WAV文件，尝试使用MP3音频格式
+		audioPath = h.StateManager.OriginalMP3
 	}
 	
 	if _, err := os.Stat(audioPath); os.IsNotExist(err) {

@@ -59,6 +59,57 @@ func (t *DownloadVideo) findYtDlp() (string, error) {
 	return "", fmt.Errorf("未找到 yt-dlp，请确保已正确安装")
 }
 
+// findLatestCookiesFile 查找最新的 cookies 文件
+func (t *DownloadVideo) findLatestCookiesFile() string {
+	// 1. 优先查找 data/cookies/ 目录下最新的用户提交的 cookies
+	cookiesDir := filepath.Join(t.App.Config.DataPath, "cookies")
+	if entries, err := os.ReadDir(cookiesDir); err == nil {
+		var latestFile string
+		var latestTime int64
+		
+		for _, entry := range entries {
+			if entry.IsDir() {
+				continue
+			}
+			
+			name := entry.Name()
+			if !strings.HasPrefix(name, "cookies_") || !strings.HasSuffix(name, ".txt") {
+				continue
+			}
+			
+			filePath := filepath.Join(cookiesDir, name)
+			if info, err := entry.Info(); err == nil {
+				if info.ModTime().Unix() > latestTime {
+					latestTime = info.ModTime().Unix()
+					latestFile = filePath
+				}
+			}
+		}
+		
+		if latestFile != "" {
+			t.App.Logger.Infof("🍪 找到用户提交的最新 cookies 文件: %s", latestFile)
+			return latestFile
+		}
+	}
+	
+	// 2. 兼容旧逻辑：查找配置文件目录下的 cookies.txt
+	configDir := filepath.Dir(t.App.Config.Path)
+	cookiesPath := filepath.Join(configDir, "cookies.txt")
+	if _, err := os.Stat(cookiesPath); err == nil {
+		t.App.Logger.Infof("🍪 找到配置目录下的 cookies 文件: %s", cookiesPath)
+		return cookiesPath
+	}
+	
+	// 3. 查找当前目录的 cookies.txt
+	if _, err := os.Stat("cookies.txt"); err == nil {
+		absPath, _ := filepath.Abs("cookies.txt")
+		t.App.Logger.Infof("🍪 找到当前目录的 cookies 文件: %s", absPath)
+		return absPath
+	}
+	
+	return ""
+}
+
 // getVideoURL 根据 VideoID 构建完整的视频 URL
 func (t *DownloadVideo) getVideoURL() string {
 	videoID := t.StateManager.VideoID
@@ -132,25 +183,12 @@ func (t *DownloadVideo) executeDownload(ytdlpPath, videoURL string, useProxy boo
 		"--merge-output-format", "mp4",
 	}
 
-	// 检查是否存在 cookies.txt
-	configDir := filepath.Dir(t.App.Config.Path)
-	cookiesPath := filepath.Join(configDir, "cookies.txt")
-
-	// 如果配置文件目录下的 cookies.txt 不存在，尝试当前目录
-	if _, err := os.Stat(cookiesPath); err != nil {
-		cookiesPath = "cookies.txt"
-	}
-
-	if _, err := os.Stat(cookiesPath); err == nil {
-		absPath, _ := filepath.Abs(cookiesPath)
-		command = append(command, "--cookies", absPath)
-		t.App.Logger.Infof("🍪 使用 Cookies 文件: %s", absPath)
-	} else {
-		// 如果没有 cookies 文件，尝试从浏览器读取（Chrome 优先）
-		t.App.Logger.Info("🍪 未找到 cookies 文件，尝试从浏览器读取...")
-		command = append(command, "--cookies-from-browser", "chrome")
-		t.App.Logger.Info("🍪 将从 Chrome 浏览器读取 cookies")
-		t.App.Logger.Warn("⚠️ 未找到 cookies.txt，可能会遇到 'Sign in to confirm you're not a bot' 错误")
+	// 查找最新的 cookies 文件（优先使用用户提交的）
+	cookiesPath := t.findLatestCookiesFile()
+	
+	if cookiesPath != "" {
+		command = append(command, "--cookies", cookiesPath)
+		t.App.Logger.Infof("🍪 使用 Cookies 文件: %s", cookiesPath)
 	}
 
 	// 添加代理配置（如果需要）
@@ -163,7 +201,7 @@ func (t *DownloadVideo) executeDownload(ytdlpPath, videoURL string, useProxy boo
 	}
 
 	// 添加视频标识符和URL
-	command = append(command, "--", t.StateManager.VideoID)
+	// command = append(command, "--", t.StateManager.VideoID)
 	command = append(command, videoURL)
 
 	t.App.Logger.Infof("执行命令: %s", strings.Join(command, " "))
@@ -335,17 +373,12 @@ func (t *DownloadVideo) getVideoMetadata(ytdlpPath string) (*VideoMetadataInfo, 
 	// 构建基础命令参数
 	args := []string{"--dump-json", "--no-download"}
 	
-	// 添加 cookies 支持
-	configDir := filepath.Dir(t.App.Config.Path)
-	cookiesPath := filepath.Join(configDir, "cookies.txt")
-	if _, err := os.Stat(cookiesPath); err != nil {
-		cookiesPath = "cookies.txt"
-	}
+	// 添加 cookies 支持（使用最新的用户提交的 cookies）
+	cookiesPath := t.findLatestCookiesFile()
 	
-	if _, err := os.Stat(cookiesPath); err == nil {
-		absPath, _ := filepath.Abs(cookiesPath)
-		args = append(args, "--cookies", absPath)
-		t.App.Logger.Debugf("🍪 使用 Cookies 文件获取元数据: %s", absPath)
+	if cookiesPath != "" {
+		args = append(args, "--cookies", cookiesPath)
+		t.App.Logger.Debugf("🍪 使用 Cookies 文件获取元数据: %s", cookiesPath)
 	} else {
 		// 从浏览器读取 cookies
 		args = append(args, "--cookies-from-browser", "chrome")

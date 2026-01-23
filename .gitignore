@@ -12,7 +12,8 @@ config.toml
 .vscode/
 *.swp
 *.swo
-node_modules
+node_modules/
+cookies/
 
 # 系统文件
 .DS_Store

@@ -17,10 +17,14 @@ type AppConfig struct {
 	Database    Database      `toml:"database"`
 	Auth        AuthConfig    `toml:"auth"`
 	AppAuth     AppAuthConfig `toml:"app_auth"` // 应用启动认证配置
+	APIAuth     APIAuthConfig `toml:"api_auth"` // API请求认证配置（go-auth）
 	FileUpDir   string        `toml:"fileUpDir"`
+	DataPath    string        `toml:"data_path"`   // 数据存储路径（用于 cookies 等）
 	YtDlpPath   string        `toml:"yt_dlp_path"` // yt-dlp 安装路径
 
-	TenCosConfig        *TencentCosConfig    `toml:"TenCosConfig"`        // 腾讯云 COS 存储配置
+	PrimaryAIService         string                    `toml:"primary_ai_service"`          // 首选AI服务提供商
+	TenCosConfig             *TencentCosConfig         `toml:"TenCosConfig"`                // 腾讯云 COS 存储配置
+	OpenAICompatibleConfig   *OpenAICompatibleConfig   `toml:"OpenAICompatibleConfig"`      // OpenAI兼容API配置
 	BaiduTransConfig    *BaiduTransConfig    `toml:"BaiduTransConfig"`    // 百度翻译服务配置
 	DeepSeekTransConfig *DeepSeekTransConfig `toml:"DeepSeekTransConfig"` // DeepSeek翻译服务配置
 	GeminiConfig        *GeminiConfig        `toml:"GeminiConfig"`        // Gemini多模态服务配置
@@ -89,6 +93,13 @@ type AppAuthConfig struct {
 	AppSecret     string `toml:"app_secret"`     // 应用密钥
 	CheckInterval int    `toml:"check_interval"` // 定期检查间隔（分钟），0表示只在启动时检查
 	SkipOnError   bool   `toml:"skip_on_error"`  // 认证失败时是否跳过（开发环境可设置为true）
+}
+
+// APIAuthConfig API请求认证配置（使用go-auth进行签名验证）
+type APIAuthConfig struct {
+	AppID             string `toml:"app_id"`              // 应用ID
+	AppSecret         string `toml:"app_secret"`          // 应用密钥
+	CookiesDecryptKey string `toml:"cookies_decrypt_key"` // Cookies 解密密钥
 }
 
 // GetDSN 获取数据库连接字符串
@@ -180,12 +191,25 @@ type WhisperConfig struct {
 	Threads   int    `toml:"threads"`    // 使用的线程数
 }
 
+// OpenAICompatibleConfig OpenAI兼容API配置
+type OpenAICompatibleConfig struct {
+	Enabled     bool    `toml:"enabled"`     // 是否启用
+	Provider    string  `toml:"provider"`    // 提供商: openai, deepseek, qwen, zhipu, gemini等
+	APIKey      string  `toml:"api_key"`     // API密钥
+	BaseURL     string  `toml:"base_url"`    // API基础URL
+	Model       string  `toml:"model"`       // 使用的模型
+	Timeout     int     `toml:"timeout"`     // 超时时间（秒）
+	MaxTokens   int     `toml:"max_tokens"`  // 最大token数
+	Temperature float64 `toml:"temperature"` // 温度参数（0-2）
+}
+
 // NewDefaultConfig 创建默认配置
 func NewDefaultConfig() *AppConfig {
 	return &AppConfig{
 		Listen:      ":8096",
 		Environment: "development",
 		Debug:       true,
+		DataPath:    "./data", // 默认数据存储路径
 		Database: Database{
 			Type:     "postgres",
 			Host:     "localhost",
@@ -202,6 +226,16 @@ func NewDefaultConfig() *AppConfig {
 			JWTExpiration: 24,
 			SessionSecret: "your-session-secret",
 		},
+
+		// API 认证配置（默认值）
+		APIAuth: APIAuthConfig{
+			AppID:             "ytb2bili_extension",
+			AppSecret:         "1206091a-3c46-488b-9964-8bc230ee6437",
+			CookiesDecryptKey: "07c6b76c-41fa-437d-8730-09f5279bb9dc",
+		},
+
+		// 首选AI服务提供商（空表示自动选择）
+		PrimaryAIService: "",
 
 		// 腾讯云 COS 配置（默认值，可被 config.toml 覆盖）
 		TenCosConfig: &TencentCosConfig{
@@ -268,12 +302,17 @@ func NewDefaultConfig() *AppConfig {
 			UpCloseReply:       0,         // 默认开启评论
 			UpCloseReward:      0,         // 默认开启打赏
 		},
-				// Whisper 配置（默认值，可被 config.toml 覆盖）
-		WhisperConfig: &WhisperConfig{
-			Enabled:   false,
-			ModelPath: "",
-			Language:  "en",
-			Threads:   4,
+	
+		// // OpenAI 兼容 API 配置（默认值，可被 config.toml 覆盖）
+		OpenAICompatibleConfig: &OpenAICompatibleConfig{
+			Enabled:     false,
+			Provider:    "openai",
+			APIKey:      "",
+			BaseURL:     "https://api.openai.com/v1",
+			Model:       "gpt-4o-mini",
+			Timeout:     60,
+			MaxTokens:   4000,
+			Temperature: 0.7,
 		},
 	}
 }
@@ -293,20 +332,24 @@ func LoadConfig(configFile string) (*AppConfig, error) {
 
 	// 创建临时结构体用于读取 config.toml（只包含可配置字段）
 	var fileConfig struct {
-		Listen              string               `toml:"listen"`
-		Environment         string               `toml:"environment"`
-		Debug               bool                 `toml:"debug"`
-		Database            Database             `toml:"database"`
-		Auth                AuthConfig           `toml:"auth"`
-		FileUpDir           string               `toml:"fileUpDir"`
-		YtDlpPath           string               `toml:"yt_dlp_path"`
-		TenCosConfig        *TencentCosConfig    `toml:"TenCosConfig"`
-		DeepSeekTransConfig *DeepSeekTransConfig `toml:"DeepSeekTransConfig"`
-		GeminiConfig        *GeminiConfig        `toml:"GeminiConfig"`
-		ProxyConfig         *ProxyConfig         `toml:"ProxyConfig"`
-		AnalyticsConfig     *AnalyticsConfig     `toml:"AnalyticsConfig"`
-		BilibiliConfig      *BilibiliConfig      `toml:"BilibiliConfig"`
-		WhisperConfig       *WhisperConfig       `toml:"WhisperConfig"`
+		Listen                 string                  `toml:"listen"`
+		Environment            string                  `toml:"environment"`
+		Debug                  bool                    `toml:"debug"`
+		Database               Database                `toml:"database"`
+		Auth                   AuthConfig              `toml:"auth"`
+		APIAuth                APIAuthConfig           `toml:"api_auth"`
+		FileUpDir              string                  `toml:"fileUpDir"`
+		DataPath               string                  `toml:"data_path"`
+		YtDlpPath              string                  `toml:"yt_dlp_path"`
+		PrimaryAIService       string                  `toml:"primary_ai_service"`
+		TenCosConfig           *TencentCosConfig       `toml:"TenCosConfig"`
+		OpenAICompatibleConfig *OpenAICompatibleConfig `toml:"OpenAICompatibleConfig"`
+		DeepSeekTransConfig    *DeepSeekTransConfig    `toml:"DeepSeekTransConfig"`
+		GeminiConfig           *GeminiConfig           `toml:"GeminiConfig"`
+		ProxyConfig            *ProxyConfig            `toml:"ProxyConfig"`
+		AnalyticsConfig        *AnalyticsConfig        `toml:"AnalyticsConfig"`
+		BilibiliConfig         *BilibiliConfig         `toml:"BilibiliConfig"`
+		WhisperConfig          *WhisperConfig          `toml:"WhisperConfig"`
 	}
 
 	// 解码TOML配置文件
@@ -322,9 +365,20 @@ func LoadConfig(configFile string) (*AppConfig, error) {
 	config.Database = fileConfig.Database
 	config.Auth = fileConfig.Auth
 	config.FileUpDir = fileConfig.FileUpDir
+	config.DataPath = fileConfig.DataPath
 	config.YtDlpPath = fileConfig.YtDlpPath
+	config.PrimaryAIService = fileConfig.PrimaryAIService
+	
+	// API 认证配置：如果配置了 AppID，则覆盖默认值
+	if fileConfig.APIAuth.AppID != "" {
+		config.APIAuth = fileConfig.APIAuth
+	}
+	
 	if fileConfig.TenCosConfig != nil {
 		config.TenCosConfig = fileConfig.TenCosConfig
+	}
+	if fileConfig.OpenAICompatibleConfig != nil {
+		config.OpenAICompatibleConfig = fileConfig.OpenAICompatibleConfig
 	}
 	if fileConfig.DeepSeekTransConfig != nil {
 		config.DeepSeekTransConfig = fileConfig.DeepSeekTransConfig
@@ -353,35 +407,43 @@ func LoadConfig(configFile string) (*AppConfig, error) {
 func SaveConfig(config *AppConfig) error {
 	// 只保存用户可配置的字段
 	fileConfig := struct {
-		Listen              string               `toml:"listen"`
-		Environment         string               `toml:"environment"`
-		Debug               bool                 `toml:"debug"`
-		Database            Database             `toml:"database"`
-		Auth                AuthConfig           `toml:"auth"`
-		FileUpDir           string               `toml:"fileUpDir"`
-		YtDlpPath           string               `toml:"yt_dlp_path"`
-		TenCosConfig        *TencentCosConfig    `toml:"TenCosConfig"`
-		DeepSeekTransConfig *DeepSeekTransConfig `toml:"DeepSeekTransConfig"`
-		GeminiConfig        *GeminiConfig        `toml:"GeminiConfig"`
-		ProxyConfig         *ProxyConfig         `toml:"ProxyConfig"`
-		AnalyticsConfig     *AnalyticsConfig     `toml:"AnalyticsConfig"`
-		BilibiliConfig      *BilibiliConfig      `toml:"BilibiliConfig"`
-		WhisperConfig       *WhisperConfig       `toml:"WhisperConfig"`
+		Listen                 string                  `toml:"listen"`
+		Environment            string                  `toml:"environment"`
+		Debug                  bool                    `toml:"debug"`
+		Database               Database                `toml:"database"`
+		Auth                   AuthConfig              `toml:"auth"`
+		APIAuth                APIAuthConfig           `toml:"api_auth"`
+		FileUpDir              string                  `toml:"fileUpDir"`
+		DataPath               string                  `toml:"data_path"`
+		YtDlpPath              string                  `toml:"yt_dlp_path"`
+		PrimaryAIService       string                  `toml:"primary_ai_service"`
+		TenCosConfig           *TencentCosConfig       `toml:"TenCosConfig"`
+		OpenAICompatibleConfig *OpenAICompatibleConfig `toml:"OpenAICompatibleConfig"`
+		DeepSeekTransConfig    *DeepSeekTransConfig    `toml:"DeepSeekTransConfig"`
+		GeminiConfig           *GeminiConfig           `toml:"GeminiConfig"`
+		ProxyConfig            *ProxyConfig            `toml:"ProxyConfig"`
+		AnalyticsConfig        *AnalyticsConfig        `toml:"AnalyticsConfig"`
+		BilibiliConfig         *BilibiliConfig         `toml:"BilibiliConfig"`
+		WhisperConfig          *WhisperConfig          `toml:"WhisperConfig"`
 	}{
-		Listen:              config.Listen,
-		Environment:         config.Environment,
-		Debug:               config.Debug,
-		Database:            config.Database,
-		Auth:                config.Auth,
-		FileUpDir:           config.FileUpDir,
-		YtDlpPath:           config.YtDlpPath,
-		TenCosConfig:        config.TenCosConfig,
-		DeepSeekTransConfig: config.DeepSeekTransConfig,
-		GeminiConfig:        config.GeminiConfig,
-		ProxyConfig:         config.ProxyConfig,
-		AnalyticsConfig:     config.AnalyticsConfig,
-		BilibiliConfig:      config.BilibiliConfig,
-		WhisperConfig:       config.WhisperConfig,
+		Listen:                 config.Listen,
+		Environment:            config.Environment,
+		Debug:                  config.Debug,
+		Database:               config.Database,
+		Auth:                   config.Auth,
+		APIAuth:                config.APIAuth,
+		FileUpDir:              config.FileUpDir,
+		DataPath:               config.DataPath,
+		YtDlpPath:              config.YtDlpPath,
+		PrimaryAIService:       config.PrimaryAIService,
+		TenCosConfig:           config.TenCosConfig,
+		OpenAICompatibleConfig: config.OpenAICompatibleConfig,
+		DeepSeekTransConfig:    config.DeepSeekTransConfig,
+		GeminiConfig:           config.GeminiConfig,
+		ProxyConfig:            config.ProxyConfig,
+		AnalyticsConfig:        config.AnalyticsConfig,
+		BilibiliConfig:         config.BilibiliConfig,
+		WhisperConfig:          config.WhisperConfig,
 	}
 
 	buf := new(bytes.Buffer)

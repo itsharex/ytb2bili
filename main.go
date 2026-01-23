@@ -8,10 +8,10 @@ import (
 	"github.com/difyz9/ytb2bili/internal/handler"
 	"github.com/difyz9/ytb2bili/internal/web"
 	"github.com/difyz9/ytb2bili/pkg/analytics"
+	"github.com/difyz9/ytb2bili/pkg/auth"
 	"github.com/difyz9/ytb2bili/pkg/cos"
 	"github.com/difyz9/ytb2bili/pkg/logger"
 	"github.com/difyz9/ytb2bili/pkg/store"
-	"github.com/difyz9/ytb2bili/pkg/utils"
 	"context"
 	"github.com/gin-gonic/gin"
 	"github.com/robfig/cron/v3"
@@ -97,6 +97,22 @@ func main() {
 			return analytics.NewMiddleware(client, logger)
 		}),
 
+		// API 认证中间件
+		fx.Provide(func(config *types.AppConfig, logger *zap.SugaredLogger) *auth.Middleware {
+			// 如果配置了 AppID 和 AppSecret，启用认证
+			if config.APIAuth.AppID != "" && config.APIAuth.AppSecret != "" {
+				authConfig := &auth.Config{
+					Apps: map[string]string{
+						config.APIAuth.AppID: config.APIAuth.AppSecret,
+					},
+				}
+				logger.Infof("API Auth middleware enabled for app: %s", config.APIAuth.AppID)
+				return auth.NewMiddleware(authConfig, logger)
+			}
+			logger.Info("API Auth middleware disabled (no credentials configured)")
+			return auth.NewMiddleware(nil, logger)
+		}),
+
 		// 服务层
 		fx.Provide(services.NewVideoService),
 		fx.Provide(services.NewSavedVideoService),
@@ -107,10 +123,10 @@ func main() {
 			return cron.New(cron.WithSeconds())
 		}),
 
-		fx.Provide(handler.NewCronHandler),
-		fx.Invoke(func(h *handler.CronHandler) {
-			h.SetUp()
-		}),
+		// fx.Provide(handler.NewCronHandler),
+		// fx.Invoke(func(h *handler.CronHandler) {
+		// 	h.SetUp()
+		// }),
 
 		// 生命周期管理
 		fx.Provide(func() *AppLifecycle {
@@ -123,11 +139,6 @@ func main() {
 			return store.MigrateDatabase(db)
 		}),
 
-		// 初始化并检查 yt-dlp
-		fx.Invoke(func(logger *zap.SugaredLogger, config *types.AppConfig) error {
-			logger.Info("Checking yt-dlp installation...")
-			return checkYtDlpInstallation(logger, config)
-		}),
 
 		fx.Provide(chain_task.NewChainTaskHandler),
 		fx.Invoke(func(h *chain_task.ChainTaskHandler) {
@@ -142,29 +153,84 @@ func main() {
 			s.SetUp()
 		}),
 
-		// 初始化应用服务器和基础路由
-		fx.Invoke(func(
-			server *core.AppServer,
-			db *gorm.DB,
-			logger *zap.SugaredLogger,
-			savedVideoService *services.SavedVideoService,
-			taskStepService *services.TaskStepService,
-			uploadScheduler *chain_task.UploadScheduler,
-			analyticsMiddleware *analytics.Middleware,
-			analyticsClient *analytics.Client,
-		) {
-			// 初始化服务器
+		// 初始化应用服务器
+		fx.Invoke(func(server *core.AppServer, db *gorm.DB) {
 			server.Init(db)
+		}),
 
-			// 添加分析中间件
+		// 添加分析中间件
+		fx.Invoke(func(server *core.AppServer, analyticsMiddleware *analytics.Middleware, logger *zap.SugaredLogger) {
 			if analyticsMiddleware != nil {
 				server.Engine.Use(analyticsMiddleware.Handler())
 				logger.Info("Analytics middleware registered")
 			}
+		}),
 
-			// 注册所有 Handler 路由（包括连接 VideoHandler 和 UploadScheduler）
-			registerHandlers(server, logger, savedVideoService, taskStepService, uploadScheduler, analyticsClient)
+		// 注册 Handlers
+		fx.Provide(handler.NewAuthHandler),
+		fx.Invoke(func(h *handler.AuthHandler, server *core.AppServer, logger *zap.SugaredLogger) {
+			h.RegisterRoutes(server)
+			logger.Info("✓ Auth routes registered")
+		}),
 
+		fx.Provide(handler.NewUploadHandler),
+		fx.Invoke(func(h *handler.UploadHandler, server *core.AppServer, logger *zap.SugaredLogger) {
+			h.RegisterRoutes(server)
+			logger.Info("✓ Upload routes registered")
+		}),
+
+		fx.Provide(handler.NewCategoryHandler),
+		fx.Invoke(func(h *handler.CategoryHandler, server *core.AppServer, logger *zap.SugaredLogger) {
+			h.RegisterRoutes(server)
+			logger.Info("✓ Category routes registered")
+		}),
+
+		fx.Provide(handler.NewSubtitleHandler),
+		fx.Invoke(func(
+			h *handler.SubtitleHandler,
+			server *core.AppServer,
+			authMiddleware *auth.Middleware,
+			appConfig *types.AppConfig,
+			logger *zap.SugaredLogger,
+		) {
+			if authMiddleware.IsEnabled() {
+				// 获取 cookies 解密密钥
+				decryptKey := appConfig.APIAuth.CookiesDecryptKey
+				if decryptKey == "" {
+					logger.Warn("⚠️ Cookies decrypt key not configured, using default")
+					decryptKey = "07c6b76c-41fa-437d-8730-09f5279bb9dc"
+				}
+				h.RegisterRoutesWithAuth(server, authMiddleware, decryptKey)
+				logger.Info("✓ Subtitle routes registered with auth and decrypt middleware")
+			} else {
+				h.RegisterRoutes(server)
+				logger.Info("✓ Subtitle routes registered (auth disabled)")
+			}
+		}),
+
+		fx.Provide(handler.NewConfigHandler),
+		fx.Invoke(func(h *handler.ConfigHandler, server *core.AppServer, logger *zap.SugaredLogger) {
+			h.RegisterRoutes(server)
+			logger.Info("✓ Config routes registered")
+		}),
+
+		fx.Provide(handler.NewAnalyticsHandler),
+		fx.Provide(handler.NewVideoHandler),
+		fx.Invoke(func(
+			h *handler.VideoHandler,
+			server *core.AppServer,
+			uploadScheduler *chain_task.UploadScheduler,
+			analyticsHandler *handler.AnalyticsHandler,
+			logger *zap.SugaredLogger,
+		) {
+			h.AnalyticsHandler = analyticsHandler
+			h.SetUploadScheduler(uploadScheduler)
+			h.RegisterRoutes(server.Engine.Group("/api/v1"))
+			logger.Info("✓ Video routes registered")
+		}),
+
+		// 健康检查和静态文件服务
+		fx.Invoke(func(server *core.AppServer, logger *zap.SugaredLogger) {
 			// 健康检查
 			server.Engine.GET("/health", func(c *gin.Context) {
 				c.JSON(200, gin.H{
@@ -194,8 +260,8 @@ func main() {
 			})
 
 			logger.Info("✓ Static file server configured")
-
 		}),
+
 		fx.Invoke(func(s *core.AppServer, db *gorm.DB) {
 			go func() {
 				err := s.Run()
@@ -242,87 +308,4 @@ func main() {
 
 	log.Println("✅ Application stopped")
 
-}
-
-// registerHandlers 注册所有 Handler 路由
-func registerHandlers(
-	server *core.AppServer,
-	logger *zap.SugaredLogger,
-	savedVideoService *services.SavedVideoService,
-	taskStepService *services.TaskStepService,
-	uploadScheduler *chain_task.UploadScheduler,
-	analyticsClient *analytics.Client,
-) {
-	logger.Info("Registering handlers...")
-
-	// 认证 Handler
-	authHandler := handler.NewAuthHandler(server)
-	authHandler.RegisterRoutes(server)
-	logger.Info("✓ Auth routes registered")
-
-	// 上传 Handler
-	uploadHandler := handler.NewUploadHandler(server)
-	uploadHandler.RegisterRoutes(server)
-	logger.Info("✓ Upload routes registered")
-
-	// 分类 Handler
-	categoryHandler := handler.NewCategoryHandler(server)
-	categoryHandler.RegisterRoutes(server)
-	logger.Info("✓ Category routes registered")
-
-	// 字幕 Handler
-	subtitleHandler := handler.NewSubtitleHandler(server)
-	subtitleHandler.RegisterRoutes(server)
-	logger.Info("✓ Subtitle routes registered")
-
-	// 分析 Handler
-	analyticsHandler := handler.NewAnalyticsHandler(analyticsClient, logger)
-
-	// 视频 Handler
-	videoHandler := handler.NewVideoHandler(server, savedVideoService, taskStepService)
-	// 设置分析处理器
-	videoHandler.AnalyticsHandler = analyticsHandler
-	// 设置上传调度器（避免循环依赖）
-	videoHandler.SetUploadScheduler(uploadScheduler)
-	videoHandler.RegisterRoutes(server.Engine.Group("/api/v1"))
-	logger.Info("✓ Video routes registered")
-
-	// 配置 Handler
-	configHandler := handler.NewConfigHandler(server)
-	configHandler.RegisterRoutes(server)
-	logger.Info("✓ Config routes registered")
-
-	logger.Info("All handlers registered successfully")
-}
-
-// checkYtDlpInstallation 检查并自动安装 yt-dlp
-func checkYtDlpInstallation(logger *zap.SugaredLogger, config *types.AppConfig) error {
-	// 从配置中获取安装目录，如果未配置则使用默认值
-	var installDir string
-	if config != nil && config.YtDlpPath != "" {
-		installDir = config.YtDlpPath
-	}
-
-	// 创建 yt-dlp 管理器
-	manager := utils.NewYtDlpManager(logger, installDir)
-
-	// 检查并自动安装
-	if err := manager.CheckAndInstall(); err != nil {
-		logger.Errorf("❌ yt-dlp 检查/安装失败: %v", err)
-		logger.Warn("⚠️  视频下载功能可能无法正常工作")
-		logger.Info("💡 您可以手动安装 yt-dlp:")
-		logger.Info("   macOS: brew install yt-dlp")
-		logger.Info("   Windows: winget install yt-dlp")
-		logger.Info("   Linux: pip install yt-dlp")
-		return nil // 不阻止应用启动
-	}
-
-	// 验证安装
-	if err := manager.Validate(); err != nil {
-		logger.Errorf("❌ yt-dlp 验证失败: %v", err)
-		return nil // 不阻止应用启动
-	}
-
-	logger.Infof("✅ yt-dlp 就绪，路径: %s", manager.GetBinaryPath())
-	return nil
 }

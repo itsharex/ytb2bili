@@ -269,7 +269,7 @@ func (m *AIServiceManager) GetGeminiConfig() *types.GeminiConfig {
 // IsOpenAICompatibleEnabled 检查OpenAI兼容API是否启用
 func (m *AIServiceManager) IsOpenAICompatibleEnabled() bool {
 	cfg := m.GetOpenAICompatibleConfig()
-	return cfg != nil && cfg.Enabled && cfg.ApiKey != ""
+	return cfg != nil && cfg.Enabled && cfg.APIKey != ""
 }
 
 // IsDeepSeekEnabled 检查DeepSeek是否启用
@@ -353,7 +353,7 @@ func (m *AIServiceManager) chatWithDeepSeek(systemPrompt, userPrompt string) (st
 // createOpenAICompatibleClient 创建OpenAI兼容客户端
 func (m *AIServiceManager) createOpenAICompatibleClient(cfg *types.OpenAICompatibleConfig) *OpenAICompatibleClient {
 	return NewOpenAICompatibleClient(&OpenAIClientConfig{
-		APIKey:      cfg.ApiKey,
+		APIKey:      cfg.APIKey,
 		BaseURL:     cfg.BaseURL,
 		Model:       cfg.Model,
 		Timeout:     cfg.Timeout,

@@ -198,17 +198,15 @@ func (h *ChainTaskHandler) RunTaskChain(video models2.TbVideo) {
 	extractAudioTask := handlers.NewExtractAudio("分离音频", h.App, stateManager, h.App.CosClient)
 	chain.AddTask(h.wrapTaskWithStepTracking(extractAudioTask, video.VideoId))
 
-	// 任务3: 使用 Whisper 转录生成字幕（如果启用）
+	// 任务3: 使用 B站必剪 转录生成字幕（如果启用）
 	if h.App.Config.WhisperConfig != nil && h.App.Config.WhisperConfig.Enabled {
-		h.App.Logger.Info("✓ Whisper 已启用，将使用 Whisper 进行语音转录")
-		whisperTask := handlers.NewWhisperHandler(
-			"Whisper转录",
+		h.App.Logger.Info("✓ B站必剪 已启用，将使用 B站必剪 进行语音转录")
+		whisperTask := handlers.NewBcutHandler(
+			"B站必剪转录",
 			h.App,
 			stateManager,
 			h.App.CosClient,
-			h.App.Config.WhisperConfig.ModelPath,
 			h.App.Config.WhisperConfig.Language,
-			h.App.Config.WhisperConfig.Threads,
 		)
 		chain.AddTask(h.wrapTaskWithStepTracking(whisperTask, video.VideoId))
 	} else {
@@ -318,17 +316,15 @@ func (h *ChainTaskHandler) RunSingleTaskStep(videoID, stepName string) error {
 	case "Whisper转录":
 		// 从配置中读取 Whisper 参数
 		if h.App.Config.WhisperConfig != nil && h.App.Config.WhisperConfig.Enabled {
-			task = handlers.NewWhisperHandler(
-				"Whisper转录",
+			task = handlers.NewBcutHandler(
+				"B站必剪转录",
 				h.App,
 				stateManager,
 				h.App.CosClient,
-				h.App.Config.WhisperConfig.ModelPath,
 				h.App.Config.WhisperConfig.Language,
-				h.App.Config.WhisperConfig.Threads,
 			)
 		} else {
-			return fmt.Errorf("Whisper 未启用或配置不完整")
+			return fmt.Errorf("B站必剪 未启用或配置不完整")
 		}
 	case "生成字幕":
 		task = handlers.NewGenerateSubtitles("生成字幕", h.App, stateManager, h.App.CosClient, h.SavedVideoService)
