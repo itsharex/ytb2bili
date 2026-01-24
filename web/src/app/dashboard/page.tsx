@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import TaskQueueStats from '@/components/dashboard/TaskQueueStats';
-import QRLogin from '@/components/auth/QRLogin';
+import FirebaseLogin from '@/components/auth/FirebaseLogin';
 import { useAuth } from '@/hooks/useAuth';
 import { BarChart3 } from 'lucide-react';
 
@@ -41,7 +41,7 @@ export default function DashboardPage() {
             </div>
             
             <div className="bg-white rounded-lg shadow-lg">
-              <QRLogin 
+              <FirebaseLogin 
                 onLoginSuccess={handleLoginSuccess}
                 onRefreshStatus={handleRefreshStatus}
               />

@@ -11,9 +11,8 @@ import type {
   UploadValidation 
 } from '@/types';
 
-const API_BASE_URL = process.env.NODE_ENV === 'development' 
-  ? '/api/v1'  // 开发模式下使用代理
-  : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8096/api/v1';
+// 前后端分离配置：直接调用后端API
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8096/api/v1';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

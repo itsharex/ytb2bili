@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import QRLogin from '@/components/auth/QRLogin';
+import FirebaseLogin from '@/components/auth/FirebaseLogin';
 import { useAuth } from '@/hooks/useAuth';
 import { 
   Download, 
@@ -74,7 +74,7 @@ export default function ExtensionPage() {
             </div>
             
             <div className="bg-white rounded-lg shadow-lg">
-              <QRLogin 
+              <FirebaseLogin 
                 onLoginSuccess={handleLoginSuccess}
                 onRefreshStatus={handleRefreshStatus}
               />

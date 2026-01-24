@@ -1,7 +1,7 @@
 "use client";
 
 import AppLayout from '@/components/layout/AppLayout';
-import QRLogin from '@/components/auth/QRLogin';
+import FirebaseLogin from '@/components/auth/FirebaseLogin';
 import { useAuth } from '@/hooks/useAuth';
 import { Plus, Youtube, Video, Globe, AlertCircle, CheckCircle } from 'lucide-react';
 import { useState } from 'react';
@@ -104,7 +104,7 @@ export default function HomePage() {
             </div>
             
             <div className="bg-white rounded-lg shadow-lg">
-              <QRLogin 
+              <FirebaseLogin 
                 onLoginSuccess={handleLoginSuccess}
                 onRefreshStatus={handleRefreshStatus}
               />

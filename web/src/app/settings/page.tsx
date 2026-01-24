@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
-import QRLogin from '@/components/auth/QRLogin';
+import FirebaseLogin from '@/components/auth/FirebaseLogin';
 import { useAuth } from '@/hooks/useAuth';
 import { Settings } from 'lucide-react';
 
@@ -56,7 +56,7 @@ export default function SettingsPage() {
             </div>
             
             <div className="bg-white rounded-lg shadow-lg">
-              <QRLogin 
+              <FirebaseLogin 
                 onLoginSuccess={handleLoginSuccess}
                 onRefreshStatus={handleRefreshStatus}
               />

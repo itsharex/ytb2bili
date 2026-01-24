@@ -33,12 +33,18 @@ func (h *AuthHandler) RegisterRoutes(server *core.AppServer) {
 	auth := api.Group("/auth")
 	{
 		auth.GET("/qrcode", h.getQRCode)
+		auth.GET("/qrcode/", h.getQRCode) // 支持尾斜杠
 		auth.GET("/qrcode/image/:authCode", h.getQRCodeImage)
 		auth.POST("/poll", h.pollQRCode)
+		auth.POST("/poll/", h.pollQRCode) // 支持尾斜杠
 		auth.GET("/login", h.loadLoginInfo)
+		auth.GET("/login/", h.loadLoginInfo) // 支持尾斜杠
 		auth.GET("/status", h.checkLoginStatus)
+		auth.GET("/status/", h.checkLoginStatus) // 支持带尾斜杠的请求
 		auth.GET("/userinfo", h.getUserInfo)
+		auth.GET("/userinfo/", h.getUserInfo) // 支持尾斜杠
 		auth.POST("/logout", h.logout)
+		auth.POST("/logout/", h.logout) // 支持尾斜杠
 	}
 }
 

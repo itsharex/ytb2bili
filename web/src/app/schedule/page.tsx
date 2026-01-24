@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import ScheduleManager from '@/components/schedule/ScheduleManager';
-import QRLogin from '@/components/auth/QRLogin';
+import FirebaseLogin from '@/components/auth/FirebaseLogin';
 import { useAuth } from '@/hooks/useAuth';
 import { Clock } from 'lucide-react';
 
@@ -41,7 +41,7 @@ export default function SchedulePage() {
             </div>
             
             <div className="bg-white rounded-lg shadow-lg">
-              <QRLogin 
+              <FirebaseLogin 
                 onLoginSuccess={handleLoginSuccess}
                 onRefreshStatus={handleRefreshStatus}
               />
