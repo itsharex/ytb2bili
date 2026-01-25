@@ -14,7 +14,7 @@ config.toml
 *.swo
 node_modules/
 cookies/
-
+login_info.json
 
 # 系统文件
 .DS_Store

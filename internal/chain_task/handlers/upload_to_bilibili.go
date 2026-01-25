@@ -95,6 +95,7 @@ type UploadToBilibili struct {
 	base.BaseTask
 	App               *core.AppServer
 	SavedVideoService *services.SavedVideoService
+	LoginStore        *storage.LoginStore // 可选：注入的登录存储
 }
 
 func NewUploadToBilibili(name string, app *core.AppServer, stateManager *manager.StateManager, client *cos.CosClient, savedVideoService *services.SavedVideoService) *UploadToBilibili {
@@ -115,7 +116,13 @@ func (t *UploadToBilibili) Execute(context map[string]interface{}) bool {
 	t.App.Logger.Info("========================================")
 
 	// 1. 检查登录信息
-	loginStore := storage.GetDefaultStore()
+	var loginStore *storage.LoginStore
+	if t.LoginStore != nil {
+		loginStore = t.LoginStore
+	} else {
+		loginStore = storage.GetDefaultStore()
+	}
+
 	if !loginStore.IsValid() {
 		t.App.Logger.Error("❌ 没有有效的 Bilibili 登录信息，请先扫码登录")
 		context["error"] = "未登录 Bilibili"
@@ -131,7 +138,21 @@ func (t *UploadToBilibili) Execute(context map[string]interface{}) bool {
 
 	t.App.Logger.Infof("✓ 已加载登录信息，用户 MID: %d", loginInfo.TokenInfo.Mid)
 
-	// 2. 查找下载的视频文件
+	// 2. 检查并准备元数据 (如果在之前的步骤中未获取到)
+	savedVideo, err := t.SavedVideoService.GetVideoByVideoID(t.StateManager.VideoID)
+	if err == nil && savedVideo != nil && savedVideo.Title == "" {
+		t.App.Logger.Info("ℹ️ 视频标题为空，尝试补充获取元数据...")
+		if err := t.fetchAndSaveMetadata(t.StateManager.VideoID); err != nil {
+			t.App.Logger.Warnf("⚠️ 补充获取元数据失败: %v", err)
+		} else {
+			// 重新获取最新的视频信息
+			savedVideo, _ = t.SavedVideoService.GetVideoByVideoID(t.StateManager.VideoID)
+		}
+	} else if err != nil {
+		t.App.Logger.Warnf("⚠️ 无法从数据库获取视频信息: %v", err)
+	}
+
+	// 3. 查找下载的视频文件
 	videoFiles := t.findVideoFiles()
 	if len(videoFiles) == 0 {
 		errMsg := "未找到视频文件"
@@ -143,10 +164,10 @@ func (t *UploadToBilibili) Execute(context map[string]interface{}) bool {
 	videoPath := videoFiles[0] // 使用第一个视频文件
 	t.App.Logger.Infof("📹 找到视频文件: %s", filepath.Base(videoPath))
 
-	// 3. 创建上传客户端
+	// 4. 创建上传客户端
 	uploadClient := bilibili.NewUploadClient(loginInfo)
 
-	// 4. 上传视频文件到 Bilibili
+	// 5. 上传视频文件到 Bilibili
 	t.App.Logger.Info("⏫ 开始上传视频到 Bilibili...")
 	video, err := uploadClient.UploadVideo(videoPath)
 	if err != nil {
@@ -160,11 +181,30 @@ func (t *UploadToBilibili) Execute(context map[string]interface{}) bool {
 	t.App.Logger.Infof("  Filename: %s", video.Filename)
 	t.App.Logger.Infof("  Title: %s", video.Title)
 
-	// 5. 准备投稿信息
-	studio := t.buildStudioInfo(video, context)
+	// 6. 上传封面 (如果有)
+	coverURL := ""
+	if coverImagePath, ok := context["cover_image_path"].(string); ok && coverImagePath != "" {
+		t.App.Logger.Infof("📸 找到封面图片: %s", filepath.Base(coverImagePath))
+		t.App.Logger.Info("⏫ 开始上传封面...")
+		
+		uploadedCoverURL, err := uploadClient.UploadCover(coverImagePath)
+		if err != nil {
+			t.App.Logger.Errorf("❌ 上传封面失败: %v", err)
+			t.App.Logger.Warn("⚠️ 将使用默认封面或截取视频画面")
+		} else {
+			coverURL = uploadedCoverURL
+			t.App.Logger.Infof("✓ 封面上传成功: %s", coverURL)
+		}
+	}
 
-	// 6. 提交视频到 Bilibili
+	// 7. 准备投稿信息 (组装 Studio)
+	studio := t.buildStudioInfo(video, coverURL, context)
+
+	// 8. 提交视频到 Bilibili
 	t.App.Logger.Info("📝 提交视频投稿信息...")
+	t.App.Logger.Debugf("投稿标题: %s", studio.Title)
+	t.App.Logger.Debugf("投稿分区: %d", studio.Tid)
+	
 	result, err := uploadClient.SubmitVideo(studio)
 	if err != nil {
 		userFriendlyError := t.getUserFriendlyError(err, "提交视频")
@@ -173,7 +213,7 @@ func (t *UploadToBilibili) Execute(context map[string]interface{}) bool {
 		return false
 	}
 
-	// 7. 检查提交结果
+	// 9. 检查提交结果
 	if result.Code != 0 {
 		errMsg := fmt.Sprintf("提交失败: code=%d, message=%s", result.Code, result.Message)
 		t.App.Logger.Error("❌ " + errMsg)
@@ -181,13 +221,14 @@ func (t *UploadToBilibili) Execute(context map[string]interface{}) bool {
 		return false
 	}
 
+
 	// 9. 保存上传结果到数据库
 	context["bili_video"] = video
 	context["bili_result"] = result
 
 	// 10. 保存结果信息到数据库和context
 	t.App.Logger.Info("💾 保存上传结果到数据库...")
-	savedVideo, err := t.SavedVideoService.GetVideoByVideoID(t.StateManager.VideoID)
+	savedVideo, err = t.SavedVideoService.GetVideoByVideoID(t.StateManager.VideoID)
 	if err != nil {
 		t.App.Logger.Errorf("❌ 获取视频记录失败: %v", err)
 	} else {
@@ -262,27 +303,18 @@ func (t *UploadToBilibili) findVideoFiles() []string {
 }
 
 // buildStudioInfo 构建投稿信息
-func (t *UploadToBilibili) buildStudioInfo(video *bilibili.Video, context map[string]interface{}) *bilibili.Studio {
+func (t *UploadToBilibili) buildStudioInfo(video *bilibili.Video, coverURL string, context map[string]interface{}) *bilibili.Studio {
 	// 默认值
 	title := t.StateManager.VideoID
 	desc := "自动上传的视频"
 	tags := "视频"
-	coverURL := "" // 封面URL
 
 	// 从数据库查询视频的标题和描述信息
 	savedVideo, err := t.SavedVideoService.GetVideoByVideoID(t.StateManager.VideoID)
 	if err != nil {
 		t.App.Logger.Warnf("⚠️ 无法从数据库获取视频信息: %v，将使用默认值", err)
 	} else {
-		// 如果标题为空，尝试补充获取元数据
-		if savedVideo.Title == "" {
-			if err := t.fetchAndSaveMetadata(t.StateManager.VideoID); err == nil {
-				// 重新获取
-				savedVideo, _ = t.SavedVideoService.GetVideoByVideoID(t.StateManager.VideoID)
-			} else {
-				t.App.Logger.Warnf("⚠️ 补充获取元数据失败: %v", err)
-			}
-		}
+		// 此处不再重复调用 fetchAndSaveMetadata，已在 Execute 中处理
 
 		// 清理标题中的标签（#hashtag）
 		cleanTitle := func(title string) string {
@@ -466,23 +498,11 @@ func (t *UploadToBilibili) buildStudioInfo(video *bilibili.Video, context map[st
 		}
 	}
 
-	// 从 context 获取下载的封面图片并上传作为封面
-	if coverImagePath, ok := context["cover_image_path"].(string); ok && coverImagePath != "" {
-		t.App.Logger.Infof("📸 找到封面图片: %s", filepath.Base(coverImagePath))
-
-		// 创建上传客户端并上传封面
-		loginStore := storage.GetDefaultStore()
-		loginInfo, err := loginStore.Load()
-		if err == nil {
-			uploadClient := bilibili.NewUploadClient(loginInfo)
-			uploadedCoverURL, err := uploadClient.UploadCover(coverImagePath)
-			if err != nil {
-				t.App.Logger.Errorf("❌ 上传封面失败: %v", err)
-			} else {
-				coverURL = uploadedCoverURL
-				t.App.Logger.Infof("✓ 封面上传成功: %s", coverURL)
-			}
-		}
+	// 封面上传已移至 Execute 方法处理，此处仅接收 coverURL
+	if coverURL != "" {
+		t.App.Logger.Infof("🖼️ 使用封面URL: %s", coverURL)
+	} else if context["cover_image_path"] != nil {
+		t.App.Logger.Warn("⚠️ 有封面图片路径但未上传成功，视频可能使用默认截屏封面")
 	}
 
 	// 检查是否有中文字幕

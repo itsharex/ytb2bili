@@ -275,3 +275,18 @@ func (s *BilibiliAccountService) GetBindingByPlatform(userID string, platform mo
 	}
 	return &binding, nil
 }
+
+// GetLatestBinding 获取最近更新的有效绑定（用于系统自动任务，不区分用户）
+func (s *BilibiliAccountService) GetLatestBinding(platform model.Platform) (*model.AccountBinding, error) {
+	var binding model.AccountBinding
+	err := s.DB.Where("platform = ? AND status = ?", platform, model.BindingStatusBound).
+		Order("updated_at DESC").
+		First(&binding).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("获取最新绑定失败: %w", err)
+	}
+	return &binding, nil
+}

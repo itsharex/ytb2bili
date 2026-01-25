@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/difyz9/bilibili-go-sdk/bilibili"
+	"github.com/difyz9/ytb2bili/internal/storage"
 	"github.com/difyz9/ytb2bili/pkg/services"
 	"github.com/difyz9/ytb2bili/pkg/store"
 	"github.com/difyz9/ytb2bili/pkg/store/model"
@@ -398,6 +399,14 @@ func (h *AccountsHandler) saveBilibiliBinding(userID string, loginData *bilibili
 			Where("user_id = ? AND platform = ? AND status = ?",
 				userID, model.PlatformBilibili, model.BindingStatusBound).
 			Count(&count)
+
+		// 同步保存到本地存储（兼容旧逻辑，确保后台上传任务可用）
+		// 注意：如果有多个账号，这里会覆盖本地存储，只保留最新绑定的那个账号作为默认上传账号
+		if err := storage.GetDefaultStore().Save(loginData); err != nil {
+			h.logger.Warnf("同步保存登录信息到本地失败: %v", err)
+		} else {
+			h.logger.Infof("已同步保存B站登录信息到本地存储")
+		}
 		binding.IsPrimary = (count == 0)
 
 		// 使用加密服务保存
