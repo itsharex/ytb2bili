@@ -3,7 +3,7 @@ import "./globals.css";
 import AuthProvider from "@/components/auth/AuthProvider";
 
 export const metadata: Metadata = {
-  title: "Bili-Up Web - Bilibili 视频管理平台",
+  title: "YTB2BILI Web - Bilibili 视频管理平台",
   description: "一个用于管理 Bilibili 视频上传和字幕处理的 Web 平台",
 };
 

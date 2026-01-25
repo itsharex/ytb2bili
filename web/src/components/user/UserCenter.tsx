@@ -15,7 +15,7 @@ function UserCenterContent() {
     if (currentUser) {
       refreshUserData();
     }
-  }, [currentUser]);
+  }, [currentUser, refreshUserData]);
 
   const handleSignOut = async () => {
     try {
@@ -51,7 +51,7 @@ function UserCenterContent() {
                 <div className="space-y-1 text-sm text-gray-600">
                   <div className="flex items-center gap-2">
                     <Mail className="w-4 h-4" />
-                    <span>{currentUser.email}</span>
+                    <span>{currentUser?.email || firebaseUser?.email || '-'}</span>
                   </div>
                   {userProfile?.created_at && (
                     <div className="flex items-center gap-2">

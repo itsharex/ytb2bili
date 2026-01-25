@@ -2,6 +2,7 @@
 
 import { useEffect, ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useFirebaseUserStore } from '@/store/firebaseUserStore';
 
 interface AuthGuardProps {
@@ -56,12 +57,12 @@ export default function AuthGuard({
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <p className="text-gray-600 mb-4">请先登录</p>
-          <a
+          <Link
             href="/"
             className="inline-block px-6 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors"
           >
             去登录
-          </a>
+          </Link>
         </div>
       </div>
     );

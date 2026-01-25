@@ -42,7 +42,7 @@ export default function VideoDetailPage({ videoId, onBack }: VideoDetailPageProp
 
   useEffect(() => {
     fetchVideoDetail();
-  }, [videoId]);
+  }, [videoId, fetchVideoDetail]);
 
   const handleRetryStep = async (stepName: string) => {
     try {

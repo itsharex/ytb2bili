@@ -48,7 +48,7 @@ export default function SettingsPage() {
           <div className="max-w-md mx-auto">
             <div className="text-center mb-8">
               <h1 className="text-3xl font-bold text-gray-900 mb-2">
-                Bili-Up Web
+                YTB2BILI Web
               </h1>
               <p className="text-gray-600">
                 Bilibili 视频管理平台

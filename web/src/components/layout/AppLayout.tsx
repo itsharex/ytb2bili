@@ -33,7 +33,7 @@ export default function AppLayout({ children, user, onLogout }: AppLayoutWithAut
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center space-x-4">
               <Link href="/" className="text-xl font-semibold text-gray-900">
-                Bili-Up Web
+                YTB2BILI Web
               </Link>
             </div>
             
