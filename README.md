@@ -1112,7 +1112,6 @@ copies of the Software...
 
 - **GitHub Issues**: [提交问题](https://github.com/difyz9/ytb2bili/issues)
 - **讨论区**: [GitHub Discussions](https://github.com/difyz9/ytb2bili/discussions)
-- **Email**: your-email@example.com
 - **💬 QQ交流群**: 773066052 (技术交流和问题讨论)
 - **📧 微信联系**: 扫描下方二维码添加微信
 <div align="center">
