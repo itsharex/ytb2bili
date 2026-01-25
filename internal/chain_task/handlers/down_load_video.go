@@ -63,6 +63,15 @@ func (t *DownloadVideo) findYtDlp() (string, error) {
 func (t *DownloadVideo) findLatestCookiesFile() string {
 	// 1. 优先查找 data/cookies/ 目录下最新的用户提交的 cookies
 	cookiesDir := filepath.Join(t.App.Config.DataPath, "cookies")
+	
+	// 确保路径是绝对路径
+	if !filepath.IsAbs(cookiesDir) {
+		absPath, err := filepath.Abs(cookiesDir)
+		if err == nil {
+			cookiesDir = absPath
+		}
+	}
+	
 	if entries, err := os.ReadDir(cookiesDir); err == nil {
 		var latestFile string
 		var latestTime int64
@@ -90,23 +99,38 @@ func (t *DownloadVideo) findLatestCookiesFile() string {
 			t.App.Logger.Infof("🍪 找到用户提交的最新 cookies 文件: %s", latestFile)
 			return latestFile
 		}
+	} else {
+		t.App.Logger.Warnf("⚠️ 无法读取 cookies 目录 %s: %v", cookiesDir, err)
 	}
 	
 	// 2. 兼容旧逻辑：查找配置文件目录下的 cookies.txt
 	configDir := filepath.Dir(t.App.Config.Path)
 	cookiesPath := filepath.Join(configDir, "cookies.txt")
+	
+	// 确保是绝对路径
+	if !filepath.IsAbs(cookiesPath) {
+		absPath, err := filepath.Abs(cookiesPath)
+		if err == nil {
+			cookiesPath = absPath
+		}
+	}
+	
 	if _, err := os.Stat(cookiesPath); err == nil {
 		t.App.Logger.Infof("🍪 找到配置目录下的 cookies 文件: %s", cookiesPath)
 		return cookiesPath
 	}
 	
 	// 3. 查找当前目录的 cookies.txt
-	if _, err := os.Stat("cookies.txt"); err == nil {
-		absPath, _ := filepath.Abs("cookies.txt")
-		t.App.Logger.Infof("🍪 找到当前目录的 cookies 文件: %s", absPath)
-		return absPath
+	currentCookies := "cookies.txt"
+	if _, err := os.Stat(currentCookies); err == nil {
+		absPath, err := filepath.Abs(currentCookies)
+		if err == nil {
+			t.App.Logger.Infof("🍪 找到当前目录的 cookies 文件: %s", absPath)
+			return absPath
+		}
 	}
 	
+	t.App.Logger.Warn("⚠️ 未找到任何可用的 cookies 文件")
 	return ""
 }
 
