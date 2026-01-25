@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AppLayout from '@/components/layout/AppLayout';
 import { useAuth } from '@/hooks/useAuth';
+import { getApiBaseUrl, apiFetch } from '@/lib/api';
 import { CheckCircle, XCircle, Link2, ExternalLink, AlertCircle, Loader2, Clock, Info, ShieldCheck, Unlink } from 'lucide-react';
 
 interface AccountStatus {
@@ -78,14 +79,8 @@ export default function AccountsPage() {
   const checkAccountStatus = useCallback(async () => {
     setIsChecking(true);
     try {
-      // 这里调用后端API检查各平台账号绑定状态
-      const apiBaseUrl = process.env.NODE_ENV === 'development' 
-        ? '/api/v1'
-        : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8096/api/v1';
-      
-      const response = await fetch(`${apiBaseUrl}/auth/accounts`, {
+      const response = await apiFetch('/auth/accounts', {
         method: 'GET',
-        credentials: 'include',
       });
 
       if (response.ok) {
@@ -124,9 +119,7 @@ export default function AccountsPage() {
 
   const handleConnect = async (platform: string) => {
     try {
-      const apiBaseUrl = process.env.NODE_ENV === 'development' 
-        ? '/api/v1'
-        : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8096/api/v1';
+      const apiBaseUrl = getApiBaseUrl();
       
       // 打开OAuth授权窗口
       const authUrl = `${apiBaseUrl}/auth/${platform}/authorize`;
@@ -159,13 +152,8 @@ export default function AccountsPage() {
     }
 
     try {
-      const apiBaseUrl = process.env.NODE_ENV === 'development' 
-        ? '/api/v1'
-        : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8096/api/v1';
-      
-      const response = await fetch(`${apiBaseUrl}/auth/${platform}/disconnect`, {
+      const response = await apiFetch(`/auth/${platform}/disconnect`, {
         method: 'POST',
-        credentials: 'include',
       });
 
       const data = await response.json();

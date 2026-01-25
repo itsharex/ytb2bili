@@ -3,6 +3,7 @@
 import AppLayout from '@/components/layout/AppLayout';
 import FirebaseLogin from '@/components/auth/FirebaseLogin';
 import { useAuth } from '@/hooks/useAuth';
+import { getApiBaseUrl, apiFetch } from '@/lib/api';
 import { Plus, Youtube, Video, Globe, AlertCircle, CheckCircle, Upload, File } from 'lucide-react';
 import { useState, useRef } from 'react';
 
@@ -40,16 +41,8 @@ export default function HomePage() {
     setMessageType('');
 
     try {
-      // 获取API基础URL
-      const apiBaseUrl = process.env.NODE_ENV === 'development' 
-        ? '/api/v1'  // 开发模式下使用代理
-        : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8096/api/v1';
-      
-      const response = await fetch(`${apiBaseUrl}/submit`, {
+      const response = await apiFetch('/submit', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
         body: JSON.stringify({
           url: videoUrl,
           title: '', // 可以为空，后端会自动提取
@@ -135,9 +128,7 @@ export default function HomePage() {
       formData.append('file', selectedFile);
       formData.append('title', selectedFile.name.replace(/\.[^/.]+$/, '')); // 使用文件名作为标题
 
-      const apiBaseUrl = process.env.NODE_ENV === 'development' 
-        ? '/api/v1'
-        : process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8096/api/v1';
+      const apiBaseUrl = getApiBaseUrl();
 
       // 使用 XMLHttpRequest 以便跟踪上传进度
       const xhr = new XMLHttpRequest();

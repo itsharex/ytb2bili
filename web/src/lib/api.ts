@@ -12,8 +12,31 @@ import type {
   UploadValidation 
 } from '@/types';
 
+/**
+ * 获取API基础URL的统一方法
+ * 开发环境使用代理路径，生产环境使用环境变量或默认值
+ */
+export const getApiBaseUrl = (): string => {
+  if (process.env.NODE_ENV === 'development') {
+    return '/api/v1';
+  }
+  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8096/api/v1';
+};
+
+/**
+ * 获取完整的API基础URL（包含协议和域名）
+ * 用于需要完整URL的场景（如OAuth回调）
+ */
+export const getFullApiBaseUrl = (): string => {
+  if (typeof window !== 'undefined') {
+    const { protocol, hostname, port } = window.location;
+    return `${protocol}//${hostname}${port ? ':' + port : ''}`;
+  }
+  return 'http://localhost:8096';
+};
+
 // 前后端分离配置：直接调用后端API
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8096/api/v1';
+const API_BASE_URL = getApiBaseUrl();
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -21,6 +44,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // 支持跨域Cookie
 });
 
 // 请求拦截器
@@ -131,6 +155,24 @@ export const subtitleApi = {
   updateSubtitles: (videoId: string, subtitles: any): Promise<ApiResponse> => {
     return api.put(`/subtitles/${videoId}`, { subtitles });
   },
+};
+
+/**
+ * 通用的fetch封装，使用统一的BASE_URL配置
+ * 适用于不使用axios的场景
+ */
+export const apiFetch = async (endpoint: string, options?: RequestInit): Promise<Response> => {
+  const baseUrl = getApiBaseUrl();
+  const url = endpoint.startsWith('http') ? endpoint : `${baseUrl}${endpoint}`;
+  
+  return fetch(url, {
+    ...options,
+    credentials: 'include', // 支持跨域Cookie
+    headers: {
+      'Content-Type': 'application/json',
+      ...options?.headers,
+    },
+  });
 };
 
 export default api;

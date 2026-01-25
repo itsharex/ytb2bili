@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useFirebaseUserStore } from '@/store/firebaseUserStore';
+import { getFullApiBaseUrl, apiFetch } from '@/lib/api';
 
 interface UserInfo {
   id: string;
@@ -24,20 +25,10 @@ export function useAuth() {
   const [bilibiliUser, setBilibiliUser] = useState<UserInfo | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 获取API基础URL
-  const getApiBaseUrl = () => {
-    if (typeof window !== 'undefined') {
-      const { protocol, hostname, port } = window.location;
-      return `${protocol}//${hostname}${port ? ':' + port : ''}`;
-    }
-    return 'http://localhost:8096';
-  };
-
   // 检查 Bilibili 登录状态（用于扫码登录）
   const checkBilibiliAuthStatus = useCallback(async () => {
     try {
-      const apiBaseUrl = getApiBaseUrl();
-      const response = await fetch(`${apiBaseUrl}/api/v1/auth/status`);
+      const response = await apiFetch('/auth/status');
       const data = await response.json();
       
       console.log('Auth status response:', data);
@@ -128,8 +119,7 @@ export function useAuth() {
       
       // 退出 Bilibili
       if (bilibiliUser) {
-        const apiBaseUrl = getApiBaseUrl();
-        await fetch(`${apiBaseUrl}/api/v1/auth/logout`, { method: 'POST' });
+        await apiFetch('/auth/logout', { method: 'POST' });
         setBilibiliUser(null);
       }
     } catch (error) {

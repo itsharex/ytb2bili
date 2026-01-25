@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { getApiBaseUrl, getFullApiBaseUrl, apiFetch } from '@/lib/api';
 
 export default function DiagnosticPage() {
   const [apiUrl, setApiUrl] = useState('');
@@ -15,7 +16,8 @@ export default function DiagnosticPage() {
     setError(null);
     setTestResult(null);
     try {
-      const response = await fetch('http://localhost:8096/api/v1/auth/status');
+      const fullUrl = getFullApiBaseUrl();
+      const response = await fetch(`${fullUrl}/api/v1/auth/status`);
       const data = await response.json();
       setTestResult({ type: 'Direct Call', data });
     } catch (err: any) {
@@ -27,7 +29,7 @@ export default function DiagnosticPage() {
     setError(null);
     setTestResult(null);
     try {
-      const response = await fetch('/api/v1/auth/status');
+      const response = await apiFetch('/auth/status');
       const data = await response.json();
       setTestResult({ type: 'Proxy Call', data });
     } catch (err: any) {
@@ -68,13 +70,13 @@ export default function DiagnosticPage() {
               onClick={testDirectCall}
               className="w-full px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
             >
-              Test Direct Call (http://localhost:8096/api/v1/auth/status)
+              Test Direct Call ({getFullApiBaseUrl()}/api/v1/auth/status)
             </button>
             <button
               onClick={testProxyCall}
               className="w-full px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
             >
-              Test Proxy Call (/api/v1/auth/status)
+              Test Unified API Call ({getApiBaseUrl()}/auth/status)
             </button>
             <button
               onClick={testAPIClient}
