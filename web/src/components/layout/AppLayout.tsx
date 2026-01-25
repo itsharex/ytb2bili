@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { User, LogOut, Settings, BarChart3, Clock, Puzzle } from 'lucide-react';
+import { User, LogOut, Settings, BarChart3, Clock, Puzzle, Link2 } from 'lucide-react';
 
 interface UserInfo {
   id: string;
@@ -114,6 +114,20 @@ export default function AppLayout({ children, user, onLogout }: AppLayoutWithAut
                   >
                     <Puzzle className="w-5 h-5" />
                     <span>浏览器插件</span>
+                  </Link>
+                </li>
+                
+                <li>
+                  <Link
+                    href="/accounts"
+                    className={`w-full flex items-center space-x-3 px-3 py-2 rounded-lg text-left transition-colors ${
+                      pathname === '/accounts'
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <Link2 className="w-5 h-5" />
+                    <span>账号绑定</span>
                   </Link>
                 </li>
                 
