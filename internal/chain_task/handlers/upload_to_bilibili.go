@@ -19,6 +19,11 @@ import (
 	"github.com/difyz9/ytb2bili/pkg/utils"
 )
 
+// https://github.com/biliup/biliup/issues/65
+
+// 参考分区表
+// https://github.com/biliup/biliup/wiki
+
 // fetchAndSaveMetadata 尝试从 YouTube 获取元数据并保存到数据库
 func (t *UploadToBilibili) fetchAndSaveMetadata(videoID string) error {
 	t.App.Logger.Infof("🔄 尝试补充获取视频元数据: %s", videoID)
