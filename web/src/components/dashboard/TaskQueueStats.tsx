@@ -24,7 +24,7 @@ interface TaskStep {
   can_retry: boolean;
 }
 
-type TabType = 'all' | 'pending' | 'preparing' | 'ready' | 'uploading' | 'completed' | 'failed';
+type TabType = 'all' | 'processing' | 'uploading' | 'uploaded' | 'completed' | 'failed';
 
 interface TaskQueueStatsProps {
   onVideoSelect?: (videoId: string) => void;
@@ -130,12 +130,12 @@ export default function TaskQueueStats({ onVideoSelect }: TaskQueueStatsProps) {
   // 状态映射
   const getStatusInfo = (status: string) => {
     const statusMap: { [key: string]: { label: string; color: string; icon: any; category: TabType } } = {
-      '001': { label: '待处理', color: 'bg-gray-100 text-gray-700', icon: Clock, category: 'pending' },
-      '002': { label: '处理中', color: 'bg-blue-100 text-blue-700', icon: Play, category: 'preparing' },
-      '200': { label: '准备就绪', color: 'bg-green-100 text-green-700', icon: CheckCircle, category: 'ready' },
+      '001': { label: '待处理', color: 'bg-gray-100 text-gray-700', icon: Clock, category: 'processing' },
+      '002': { label: '处理中', color: 'bg-blue-100 text-blue-700', icon: Play, category: 'processing' },
+      '200': { label: '准备就绪', color: 'bg-green-100 text-green-700', icon: CheckCircle, category: 'processing' },
       '201': { label: '上传视频中', color: 'bg-purple-100 text-purple-700', icon: Upload, category: 'uploading' },
       '299': { label: '上传失败', color: 'bg-red-100 text-red-700', icon: AlertCircle, category: 'failed' },
-      '300': { label: '视频已上传', color: 'bg-cyan-100 text-cyan-700', icon: CheckCircle, category: 'uploading' },
+      '300': { label: '视频已上传', color: 'bg-cyan-100 text-cyan-700', icon: CheckCircle, category: 'uploaded' },
       '301': { label: '上传字幕中', color: 'bg-indigo-100 text-indigo-700', icon: Upload, category: 'uploading' },
       '399': { label: '字幕上传失败', color: 'bg-orange-100 text-orange-700', icon: AlertCircle, category: 'failed' },
       '400': { label: '全部完成', color: 'bg-emerald-100 text-emerald-700', icon: CheckCircle, category: 'completed' },
@@ -164,10 +164,9 @@ export default function TaskQueueStats({ onVideoSelect }: TaskQueueStatsProps) {
   // 分类视频
   const categorizeVideos = () => {
     return {
-      pending: videos.filter(v => v.status === '001'),
-      preparing: videos.filter(v => v.status === '002'),
-      ready: videos.filter(v => v.status === '200'),
-      uploading: videos.filter(v => ['201', '300', '301'].includes(v.status)),
+      processing: videos.filter(v => ['001', '002', '200'].includes(v.status)),
+      uploading: videos.filter(v => ['201', '301'].includes(v.status)),
+      uploaded: videos.filter(v => v.status === '300'),
       completed: videos.filter(v => v.status === '400'),
       failed: videos.filter(v => ['299', '399', '999'].includes(v.status)),
     };
@@ -192,10 +191,9 @@ export default function TaskQueueStats({ onVideoSelect }: TaskQueueStatsProps) {
 
   const tabs = [
     { key: 'all', label: '全部', count: videos.length },
-    { key: 'pending', label: '待处理', count: categories.pending.length },
-    { key: 'preparing', label: '准备中', count: categories.preparing.length },
-    { key: 'ready', label: '准备就绪', count: categories.ready.length },
+    { key: 'processing', label: '处理中', count: categories.processing.length },
     { key: 'uploading', label: '上传中', count: categories.uploading.length },
+    { key: 'uploaded', label: '已上传', count: categories.uploaded.length },
     { key: 'completed', label: '已完成', count: categories.completed.length },
     { key: 'failed', label: '失败', count: categories.failed.length },
   ];
@@ -370,7 +368,7 @@ export default function TaskQueueStats({ onVideoSelect }: TaskQueueStatsProps) {
                   每5秒检查一次待处理任务，依次执行：下载视频 → 生成字幕 → 翻译字幕 → 生成元数据
                 </p>
                 <div className="mt-2 text-xs text-gray-500">
-                  当前准备中: {categories.preparing.length} 个 | 待处理: {categories.pending.length} 个
+                  当前: {categories.processing.length} 个
                 </div>
               </div>
             </div>
@@ -385,7 +383,7 @@ export default function TaskQueueStats({ onVideoSelect }: TaskQueueStatsProps) {
                   每5分钟检查一次，每小时自动上传1个准备就绪的视频到Bilibili
                 </p>
                 <div className="mt-2 text-xs text-gray-500">
-                  准备就绪: {categories.ready.length} 个 | 上传中: {categories.uploading.length} 个
+                  上传中: {categories.uploading.length} 个
                 </div>
               </div>
             </div>
@@ -431,7 +429,7 @@ export default function TaskQueueStats({ onVideoSelect }: TaskQueueStatsProps) {
         <div className="bg-white rounded-lg border border-gray-200 p-4">
           <div className="text-sm text-gray-600 mb-1">进行中</div>
           <div className="text-2xl font-bold text-blue-600">
-            {categories.preparing.length + categories.uploading.length}
+            {categories.processing.length + categories.uploading.length + categories.uploaded.length}
           </div>
         </div>
         <div className="bg-white rounded-lg border border-gray-200 p-4">
